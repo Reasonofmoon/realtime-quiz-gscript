@@ -1,6 +1,4 @@
-<div align="center">
-
-# 🎯 Realtime Quiz GScript
+﻿# 🎯 Realtime Quiz GScript
 
 ### *교실을 실시간 게임쇼로 — Google Sheets가 DB가 된다*
 
@@ -16,8 +14,6 @@
 > Google Sheets를 DB로, GAS를 서버로 — 월 비용 $0, 배포 1분, 동시접속 무제한.
 
 [📖 워크샵 매뉴얼](WORKSHOP_MANUAL.md) · [🐛 이슈](../../issues)
-
-</div>
 
 ---
 
