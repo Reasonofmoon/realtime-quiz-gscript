@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <?!= include('style'); ?>
+</head>
+<body class="teacher-body">
+
+  <!-- ═══ 사이드바 ═══ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-sm">
+        <svg viewBox="0 0 48 48" fill="none">
+          <rect x="4" y="4" width="40" height="40" rx="12" fill="#FF6B35"/>
+          <text x="24" y="32" text-anchor="middle" fill="white" font-size="24" font-weight="bold">Q</text>
+        </svg>
+      </div>
+      <h2>퀴즈 관리</h2>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        대시보드
+      </button>
+      <button class="nav-item" data-tab="create" onclick="switchTab('create')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+        퀴즈 만들기
+      </button>
+      <button class="nav-item" data-tab="manage" onclick="switchTab('manage')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        퀴즈 관리
+      </button>
+      <button class="nav-item" data-tab="results" onclick="switchTab('results')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        결과 분석
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="share-box">
+        <p class="share-label">학생 접속 링크</p>
+        <button class="btn btn-sm btn-accent" onclick="copyStudentLink()">📋 링크 복사</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ 메인 콘텐츠 ═══ -->
+  <main class="main-content">
+
+    <!-- 모바일 토글 -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+
+    <!-- ── 대시보드 탭 ── -->
+    <section class="tab-panel active" id="tab-dashboard">
+      <h1 class="page-title">대시보드</h1>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number" id="stat-total">0</div>
+          <div class="stat-label">전체 퀴즈</div>
+        </div>
+        <div class="stat-card accent">
+          <div class="stat-number" id="stat-active">0</div>
+          <div class="stat-label">진행 중</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="stat-responses">0</div>
+          <div class="stat-label">총 응답수</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="stat-students">0</div>
+          <div class="stat-label">참여 학생</div>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <h3>빠른 시작</h3>
+        <div class="action-cards">
+          <div class="action-card" onclick="switchTab('create')">
+            <div class="action-icon">✏️</div>
+            <h4>새 퀴즈</h4>
+            <p>정답이 있는 퀴즈 생성</p>
+          </div>
+          <div class="action-card" onclick="switchTab('create'); setTimeout(()=>document.getElementById('type-poll').click(), 100)">
+            <div class="action-icon">📊</div>
+            <h4>새 투표</h4>
+            <p>의견 수렴용 투표 생성</p>
+          </div>
+          <div class="action-card" onclick="switchTab('results')">
+            <div class="action-icon">📈</div>
+            <h4>결과 보기</h4>
+            <p>응답 현황 분석</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 퀴즈 만들기 탭 ── -->
+    <section class="tab-panel" id="tab-create">
+      <h1 class="page-title">퀴즈 만들기</h1>
+      <div class="form-card">
+        <!-- 유형 선택 -->
+        <div class="type-toggle">
+          <button class="type-btn active" id="type-quiz" onclick="setQuizType('quiz')">
+            <span class="type-icon">❓</span> 퀴즈 (정답 있음)
+          </button>
+          <button class="type-btn" id="type-poll" onclick="setQuizType('poll')">
+            <span class="type-icon">📊</span> 투표 (의견 수렴)
+          </button>
+        </div>
+        
+        <div class="form-group">
+          <label>제목</label>
+          <input type="text" id="quiz-title" placeholder="예: 1단원 복습 퀴즈" maxlength="50">
+        </div>
+        
+        <div class="form-group">
+          <label>질문</label>
+          <textarea id="quiz-question" placeholder="질문을 입력하세요" rows="3" maxlength="500"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>선택지</label>
+          <div id="options-editor">
+            <div class="option-row">
+              <span class="option-marker">A</span>
+              <input type="text" class="option-input" placeholder="선택지 A" maxlength="100">
+              <label class="correct-radio" id="correct-label-0" title="정답으로 설정">
+                <input type="radio" name="correct" value="0" checked> ✓
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-marker">B</span>
+              <input type="text" class="option-input" placeholder="선택지 B" maxlength="100">
+              <label class="correct-radio" id="correct-label-1" title="정답으로 설정">
+                <input type="radio" name="correct" value="1"> ✓
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-marker">C</span>
+              <input type="text" class="option-input" placeholder="선택지 C" maxlength="100">
+              <label class="correct-radio" id="correct-label-2" title="정답으로 설정">
+                <input type="radio" name="correct" value="2"> ✓
+              </label>
+            </div>
+            <div class="option-row">
+              <span class="option-marker">D</span>
+              <input type="text" class="option-input" placeholder="선택지 D" maxlength="100">
+              <label class="correct-radio" id="correct-label-3" title="정답으로 설정">
+                <input type="radio" name="correct" value="3"> ✓
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <button class="btn btn-primary btn-lg" onclick="createNewQuiz()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+          퀴즈 생성
+        </button>
+      </div>
+    </section>
+
+    <!-- ── 퀴즈 관리 탭 ── -->
+    <section class="tab-panel" id="tab-manage">
+      <h1 class="page-title">퀴즈 관리</h1>
+      <div id="manage-list" class="manage-list">
+        <div class="empty-state">
+          <p>생성된 퀴즈가 없습니다</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 결과 분석 탭 ── -->
+    <section class="tab-panel" id="tab-results">
+      <h1 class="page-title">결과 분석</h1>
+      <div class="form-group">
+        <label>퀴즈 선택</label>
+        <select id="results-quiz-select" onchange="loadResults()">
+          <option value="">-- 퀴즈를 선택하세요 --</option>
+        </select>
+      </div>
+      <div id="results-area" class="results-area" style="display:none;">
+        <div class="results-summary" id="results-summary"></div>
+        <div class="chart-container" id="chart-container"></div>
+        <div class="student-table-wrap">
+          <table class="student-table" id="student-table">
+            <thead>
+              <tr><th>이름</th><th>선택</th><th>정답여부</th><th>시각</th></tr>
+            </thead>
+            <tbody id="student-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══ 토스트 ═══ -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ═══ 로딩 ═══ -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>처리 중...</p>
+  </div>
+
+  <?!= include('teacher_script'); ?>
+</body>
+</html>

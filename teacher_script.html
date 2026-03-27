@@ -1,0 +1,325 @@
+<script>
+// ════════════════════════════════════════════════
+//  교사용 클라이언트 스크립트
+// ════════════════════════════════════════════════
+
+let currentType = 'quiz';
+let allQuizzes = [];
+
+// ── 탭 전환 ──────────────────────────────────
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  
+  if (tabId === 'dashboard') loadDashboard();
+  if (tabId === 'manage') loadManageList();
+  if (tabId === 'results') loadResultsDropdown();
+  
+  // 모바일 사이드바 닫기
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function showLoading(show) {
+  document.getElementById('loading-overlay').classList.toggle('show', show);
+}
+
+function showToast(message, type) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + (type || 'info');
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+
+// ── 대시보드 ─────────────────────────────────
+function loadDashboard() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      document.getElementById('stat-total').textContent = data.totalQuizzes;
+      document.getElementById('stat-active').textContent = data.activeQuizzes;
+      document.getElementById('stat-responses').textContent = data.totalResponses;
+      document.getElementById('stat-students').textContent = data.uniqueStudents;
+    })
+    .getDashboardSummary();
+}
+
+// ── 퀴즈 만들기 ─────────────────────────────
+function setQuizType(type) {
+  currentType = type;
+  document.getElementById('type-quiz').classList.toggle('active', type === 'quiz');
+  document.getElementById('type-poll').classList.toggle('active', type === 'poll');
+  
+  // 투표 모드: 정답 라디오 숨김
+  document.querySelectorAll('.correct-radio').forEach(el => {
+    el.style.display = type === 'poll' ? 'none' : 'flex';
+  });
+}
+
+function createNewQuiz() {
+  const title = document.getElementById('quiz-title').value.trim();
+  const question = document.getElementById('quiz-question').value.trim();
+  const optionInputs = document.querySelectorAll('.option-input');
+  const options = Array.from(optionInputs).map(el => el.value.trim()).filter(v => v);
+  
+  if (!question) {
+    showToast('질문을 입력해주세요.', 'error');
+    return;
+  }
+  if (options.length < 2) {
+    showToast('최소 2개의 선택지를 입력해주세요.', 'error');
+    return;
+  }
+  
+  let correctIndex = 0;
+  if (currentType === 'quiz') {
+    const checked = document.querySelector('input[name="correct"]:checked');
+    correctIndex = checked ? parseInt(checked.value) : 0;
+    if (correctIndex >= options.length) {
+      showToast('정답 선택지를 확인해주세요.', 'error');
+      return;
+    }
+  }
+  
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showLoading(false);
+      if (result.success) {
+        showToast('퀴즈가 생성되었습니다! 🎉', 'success');
+        // 폼 초기화
+        document.getElementById('quiz-title').value = '';
+        document.getElementById('quiz-question').value = '';
+        optionInputs.forEach(el => el.value = '');
+      }
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      showToast('생성 실패: ' + err.message, 'error');
+    })
+    .createQuiz({
+      title: title,
+      question: question,
+      options: options,
+      correctIndex: correctIndex,
+      type: currentType
+    });
+}
+
+// ── 퀴즈 관리 ────────────────────────────────
+function loadManageList() {
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(quizzes) {
+      showLoading(false);
+      allQuizzes = quizzes || [];
+      renderManageList(allQuizzes);
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+    })
+    .getAllQuizzes();
+}
+
+function renderManageList(quizzes) {
+  const container = document.getElementById('manage-list');
+  
+  if (!quizzes.length) {
+    container.innerHTML = '<div class="empty-state"><p>생성된 퀴즈가 없습니다</p></div>';
+    return;
+  }
+  
+  container.innerHTML = quizzes.map(q => `
+    <div class="manage-item">
+      <div class="manage-info">
+        <h4>
+          <span class="badge badge-${q.type}">${q.type === 'quiz' ? '퀴즈' : '투표'}</span>
+          ${escapeHtml(q.title || q.question.slice(0, 30))}
+        </h4>
+        <p>${escapeHtml(q.question)}</p>
+      </div>
+      <span class="badge ${q.active ? 'badge-active' : 'badge-inactive'}">
+        ${q.active ? '활성' : '비활성'}
+      </span>
+      <div class="manage-actions">
+        <button class="btn-toggle" onclick="toggleQuizItem('${q.quizId}')">
+          ${q.active ? '비활성화' : '활성화'}
+        </button>
+        <button class="btn-delete" onclick="deleteQuizItem('${q.quizId}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleQuizItem(quizId) {
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showLoading(false);
+      if (result.success) {
+        showToast(result.active ? '퀴즈가 활성화되었습니다.' : '퀴즈가 비활성화되었습니다.', 'success');
+        loadManageList();
+      }
+    })
+    .toggleQuiz(quizId);
+}
+
+function deleteQuizItem(quizId) {
+  if (!confirm('정말 삭제하시겠습니까? 관련 응답 데이터도 모두 삭제됩니다.')) return;
+  
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showLoading(false);
+      if (result.success) {
+        showToast('퀴즈가 삭제되었습니다.', 'success');
+        loadManageList();
+      }
+    })
+    .deleteQuiz(quizId);
+}
+
+// ── 결과 분석 ────────────────────────────────
+function loadResultsDropdown() {
+  google.script.run
+    .withSuccessHandler(function(quizzes) {
+      allQuizzes = quizzes || [];
+      const select = document.getElementById('results-quiz-select');
+      select.innerHTML = '<option value="">-- 퀴즈를 선택하세요 --</option>';
+      quizzes.forEach(q => {
+        select.innerHTML += `<option value="${q.quizId}">${q.type === 'quiz' ? '❓' : '📊'} ${escapeHtml(q.title || q.question.slice(0, 40))}</option>`;
+      });
+    })
+    .getAllQuizzes();
+}
+
+function loadResults() {
+  const quizId = document.getElementById('results-quiz-select').value;
+  if (!quizId) {
+    document.getElementById('results-area').style.display = 'none';
+    return;
+  }
+  
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(data) {
+      showLoading(false);
+      if (data.error) { showToast(data.error, 'error'); return; }
+      renderResults(data);
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      showToast('결과 로딩 실패', 'error');
+    })
+    .getQuizResults(quizId);
+}
+
+function renderResults(data) {
+  document.getElementById('results-area').style.display = 'block';
+  const quiz = data.quiz;
+  const isPoll = quiz.type === 'poll';
+  
+  // 요약
+  const summaryHtml = `
+    <div class="summary-box">
+      <div class="summary-value">${data.totalResponses}</div>
+      <div class="summary-label">총 응답수</div>
+    </div>
+    ${!isPoll ? `
+    <div class="summary-box">
+      <div class="summary-value" style="color:var(--green)">${data.correctRate}%</div>
+      <div class="summary-label">정답률</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">${data.correctCount}/${data.totalResponses}</div>
+      <div class="summary-label">정답/전체</div>
+    </div>` : ''}
+  `;
+  document.getElementById('results-summary').innerHTML = summaryHtml;
+  
+  // 차트
+  const markers = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const maxCount = Math.max(1, ...Object.values(data.tally));
+  
+  let chartHtml = '<h3 style="margin-bottom:16px;font-weight:700;color:var(--navy);">선택지별 분포</h3>';
+  quiz.options.forEach((opt, i) => {
+    const count = data.tally[i] || 0;
+    const pct = data.totalResponses > 0 ? Math.round((count / data.totalResponses) * 100) : 0;
+    const width = data.totalResponses > 0 ? (count / maxCount) * 100 : 0;
+    const isCorrect = !isPoll && i === quiz.correctIndex;
+    const barClass = isPoll ? `poll-${i % 4}` : (isCorrect ? 'correct' : 'wrong');
+    
+    chartHtml += `
+      <div class="chart-bar-group">
+        <div class="chart-label">
+          <span class="chart-label-text">
+            ${markers[i]}. ${escapeHtml(opt)}
+            ${isCorrect ? ' ✅' : ''}
+          </span>
+          <span class="chart-label-count">${count}명 (${pct}%)</span>
+        </div>
+        <div class="chart-bar-bg">
+          <div class="chart-bar-fill ${barClass}" style="width:${width}%"></div>
+        </div>
+      </div>`;
+  });
+  document.getElementById('chart-container').innerHTML = chartHtml;
+  
+  // 학생 목록
+  const tbody = document.getElementById('student-tbody');
+  if (!data.students.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);">아직 응답이 없습니다</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = data.students.map(s => {
+    const optLabel = markers[s.selected] || '?';
+    const time = s.time ? new Date(s.time).toLocaleString('ko-KR') : '-';
+    let correctCell = '-';
+    if (s.correct === 'O') correctCell = '<span class="correct-mark">✅ 정답</span>';
+    else if (s.correct === 'X') correctCell = '<span class="wrong-mark">❌ 오답</span>';
+    
+    return `<tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${optLabel}</td>
+      <td>${correctCell}</td>
+      <td>${time}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 링크 복사 ────────────────────────────────
+function copyStudentLink() {
+  google.script.run
+    .withSuccessHandler(function(url) {
+      const studentUrl = url; // 기본 URL = 학생용
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(studentUrl).then(() => {
+          showToast('학생 접속 링크가 복사되었습니다!', 'success');
+        });
+      } else {
+        prompt('아래 링크를 복사하세요:', studentUrl);
+      }
+    })
+    .getWebAppUrl();
+}
+
+// ── 유틸리티 ─────────────────────────────────
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+// ── 초기 로드 ────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  loadDashboard();
+});
+</script>

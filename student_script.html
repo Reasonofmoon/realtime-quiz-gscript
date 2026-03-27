@@ -1,0 +1,171 @@
+<script>
+// ════════════════════════════════════════════════
+//  학생용 클라이언트 스크립트
+// ════════════════════════════════════════════════
+
+let studentName = '';
+let currentQuiz = null;
+let selectedOption = -1;
+
+// ── 화면 전환 ────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showLoading(show) {
+  document.getElementById('loading-overlay').classList.toggle('show', show);
+}
+
+// ── 입장 ─────────────────────────────────────
+function enterQuiz() {
+  const nameInput = document.getElementById('student-name');
+  const name = nameInput.value.trim();
+  if (!name) {
+    nameInput.style.borderColor = '#EF4444';
+    nameInput.focus();
+    return;
+  }
+  studentName = name;
+  document.getElementById('user-badge').textContent = '👤 ' + name;
+  showScreen('quiz-list-screen');
+  refreshQuizzes();
+}
+
+// Enter 키 지원
+document.getElementById('student-name').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') enterQuiz();
+  this.style.borderColor = '';
+});
+
+// ── 퀴즈 목록 로드 ──────────────────────────
+function refreshQuizzes() {
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(quizzes) {
+      showLoading(false);
+      renderQuizList(quizzes || []);
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      console.error(err);
+    })
+    .getActiveQuizzes();
+}
+
+function renderQuizList(quizzes) {
+  const container = document.getElementById('quiz-list');
+  if (!quizzes.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <p>현재 진행 중인 퀴즈가 없습니다</p>
+        <p class="text-muted">잠시 후 새로고침해 보세요</p>
+      </div>`;
+    return;
+  }
+  
+  container.innerHTML = quizzes.map(q => `
+    <div class="quiz-card" onclick="openQuiz('${q.quizId}')">
+      <span class="card-type type-${q.type}">${q.type === 'quiz' ? '퀴즈' : '투표'}</span>
+      <div class="card-title">${escapeHtml(q.title || '제목 없음')}</div>
+      <div class="card-question">${escapeHtml(q.question)}</div>
+    </div>
+  `).join('');
+}
+
+// ── 퀴즈 열기 ────────────────────────────────
+function openQuiz(quizId) {
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(quizzes) {
+      showLoading(false);
+      const quiz = (quizzes || []).find(q => q.quizId === quizId);
+      if (!quiz) return;
+      currentQuiz = quiz;
+      selectedOption = -1;
+      renderQuizAnswer(quiz);
+      showScreen('quiz-answer-screen');
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      console.error(err);
+    })
+    .getActiveQuizzes();
+}
+
+function renderQuizAnswer(quiz) {
+  const badge = document.getElementById('quiz-type-badge');
+  badge.textContent = quiz.type === 'quiz' ? '❓ 퀴즈' : '📊 투표';
+  
+  document.getElementById('quiz-question-text').textContent = quiz.question;
+  
+  const markers = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const container = document.getElementById('options-container');
+  container.innerHTML = quiz.options.map((opt, i) => `
+    <button class="option-btn" onclick="selectOption(${i}, this)">
+      <span class="opt-marker">${markers[i]}</span>
+      <span>${escapeHtml(opt)}</span>
+    </button>
+  `).join('');
+  
+  document.getElementById('submit-btn').disabled = true;
+}
+
+function selectOption(index, el) {
+  selectedOption = index;
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('submit-btn').disabled = false;
+}
+
+// ── 응답 제출 ────────────────────────────────
+function submitAnswer() {
+  if (selectedOption < 0 || !currentQuiz) return;
+  
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showLoading(false);
+      if (!result.success) {
+        showResult('⚠️', '알림', result.error || '제출에 실패했습니다.');
+        return;
+      }
+      if (result.type === 'poll') {
+        showResult('📊', '투표 완료!', '의견이 반영되었습니다. 감사합니다!');
+      } else if (result.correct) {
+        showResult('🎉', '정답입니다!', '훌륭해요! 잘 알고 있네요.');
+      } else {
+        showResult('😅', '오답입니다', '다음에는 맞출 수 있을 거예요!');
+      }
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      showResult('❌', '오류 발생', '제출 중 문제가 발생했습니다.');
+    })
+    .submitResponse({
+      quizId: currentQuiz.quizId,
+      studentName: studentName,
+      selectedIndex: selectedOption
+    });
+}
+
+function showResult(icon, title, message) {
+  document.getElementById('result-icon').textContent = icon;
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-message').textContent = message;
+  showScreen('result-screen');
+}
+
+function backToList() {
+  showScreen('quiz-list-screen');
+  refreshQuizzes();
+}
+
+// ── 유틸리티 ─────────────────────────────────
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
